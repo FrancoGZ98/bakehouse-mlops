@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md
 # MAGIC # MLflow en Databricks, paso a paso
 # MAGIC
@@ -131,8 +135,38 @@ print(f"Run: {run.info.run_id} · accuracy {accuracy_score(y_test, pred):.3f}")
 
 # COMMAND ----------
 
-# TODO: crea el run regresion_logistica_c01 con C = 0.1, registra accuracy, f1_macro y el tag autor
 
+with mlflow.start_run(run_name="regresion_logistica_c01") as run:
+    C = 0.1
+    modelo = make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=1000))
+    modelo.fit(X_train, y_train)
+    pred = modelo.predict(X_test)
+
+    acc = accuracy_score(y_test, pred)
+    f1m = f1_score(y_test, pred, average="macro")
+
+    # Parámetros
+    mlflow.log_param("algoritmo", "LogisticRegression")
+    mlflow.log_param("C", C)
+
+    # Métricas
+    mlflow.log_metric("accuracy", acc)
+    mlflow.log_metric("f1_macro", f1m)
+
+    # Tags
+    mlflow.set_tag("autor", "Franco")
+    mlflow.set_tag("etapa", "ajuste_regularizacion")
+
+    # Artefactos
+    mlflow.log_figure(matriz_confusion(y_test, pred, "Regresión logística C=0.1"), "matriz_confusion.png")
+    mlflow.log_text("Run con regularización más fuerte (C=0.1) para comparar contra la línea base C=1.0.", "notas.txt")
+
+# Diagnóstico
+print(f"Run ID     : {run.info.run_id}")
+print(f"Run name   : {run.data.tags.get('mlflow.runName', 'regresion_logistica_c01')}")
+print(f"C          : {C}")
+print(f"accuracy   : {acc:.3f}")
+print(f"f1_macro   : {f1m:.3f}")
 
 # COMMAND ----------
 
@@ -201,6 +235,46 @@ print(f"Búsqueda terminada: {len(combinaciones)} runs hijos")
 # COMMAND ----------
 
 # TODO: repite la búsqueda agregando min_samples_leaf en [1, 5] dentro del padre busqueda_random_forest_v2
+
+combinaciones_v2 = [
+    {"n_estimators": n, "max_depth": d, "min_samples_leaf": m}
+    for n in [10, 50, 150]
+    for d in [2, 4, None]
+    for m in [1, 5]
+]
+print(f"Combinaciones a evaluar: {len(combinaciones_v2)}")  # 3 × 3 × 2 = 18
+
+resultados = []
+
+with mlflow.start_run(run_name="busqueda_random_forest_v2") as padre:
+    mlflow.set_tag("etapa", "busqueda")
+    mlflow.set_tag("autor", "Franco")
+
+    for params in combinaciones_v2:
+        nombre = (f"rf_{params['n_estimators']}_prof_{params['max_depth']}"
+                  f"_hoja_{params['min_samples_leaf']}")
+        with mlflow.start_run(run_name=nombre, nested=True):
+            modelo = RandomForestClassifier(random_state=42, **params).fit(X_train, y_train)
+            pred = modelo.predict(X_test)
+
+            acc = accuracy_score(y_test, pred)
+            f1m = f1_score(y_test, pred, average="macro")
+
+            mlflow.log_params({"algoritmo": "RandomForest", **params})
+            mlflow.log_metric("accuracy", acc)
+            mlflow.log_metric("f1_macro", f1m)
+
+            resultados.append({"nombre": nombre, "accuracy": acc, "f1_macro": f1m})
+            print(f"  {nombre:<28} acc={acc:.3f}  f1_macro={f1m:.3f}")
+
+    # Resumen del mejor hijo, registrado en el padre
+    mejor = max(resultados, key=lambda r: r["f1_macro"])
+    mlflow.log_metric("mejor_f1_macro", mejor["f1_macro"])
+    mlflow.set_tag("mejor_run", mejor["nombre"])
+
+print(f"\nBúsqueda terminada: {len(combinaciones_v2)} runs hijos")
+print(f"Padre run ID : {padre.info.run_id}")
+print(f"Mejor hijo   : {mejor['nombre']} (f1_macro={mejor['f1_macro']:.3f}, acc={mejor['accuracy']:.3f})")
 
 
 # COMMAND ----------
