@@ -3,8 +3,6 @@
 Caso resuelto del curso **Experiencias en Analítica**: pronóstico de ventas diarias por franquicia
 con el dataset `samples.bakehouse` de Databricks Free Edition, desplegado con CI/CD desde GitHub.
 
-testing
-
 ```
 bakehouse-mlops/
 ├── databricks.yml            # Bundle: variables y ambientes dev / prod
