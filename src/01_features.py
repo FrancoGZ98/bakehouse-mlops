@@ -19,6 +19,7 @@
 
 # COMMAND ----------
 
+# testin CI/CD with DataBricks
 dbutils.widgets.text("catalog", "workspace")
 dbutils.widgets.text("schema", "bakehouse_dev")
 #testing
